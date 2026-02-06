@@ -63,8 +63,12 @@ jobs:
         if: runner.os == 'Linux'
         run: wails build -platform ${{ matrix.platform }} -tags webkit2_41
 
-      - name: Build (Other)
-        if: runner.os != 'Linux'
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        run: wails build -platform ${{ matrix.platform }} -ldflags "-extldflags '-static'"
+
+      - name: Build (macOS)
+        if: runner.os == 'macOS'
         run: wails build -platform ${{ matrix.platform }}
 
       - name: Get Version
