@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
 
 	"github.com/run-bigpig/jcp/internal/adk/mcp"
 	"github.com/run-bigpig/jcp/internal/adk/tools"
 	"github.com/run-bigpig/jcp/internal/agent"
+	"github.com/run-bigpig/jcp/internal/logger"
 	"github.com/run-bigpig/jcp/internal/meeting"
 	"github.com/run-bigpig/jcp/internal/memory"
 	"github.com/run-bigpig/jcp/internal/models"
@@ -16,6 +16,8 @@ import (
 
 	"github.com/wailsapp/wails/v2/pkg/runtime"
 )
+
+var log = logger.New("app")
 
 // App struct
 type App struct {
@@ -36,9 +38,90 @@ type App struct {
 
 // NewApp creates a new App application struct
 func NewApp() *App {
+	dataDir := filepath.Join(".", "data")
+
+	// 初始化文件日志
+	if err := logger.InitFileLogger(filepath.Join(dataDir, "logs")); err != nil {
+		log.Error("初始化文件日志失败: %v", err)
+	}
+	logger.SetGlobalLevel(logger.DEBUG)
+
+	// 初始化配置服务
+	configService, err := services.NewConfigService(dataDir)
+	if err != nil {
+		panic(err)
+	}
+
+	// 初始化研报服务
+	researchReportService := services.NewResearchReportService()
+
+	// 初始化舆情热点服务
+	hotTrendSvc, err := hottrend.NewHotTrendService()
+	if err != nil {
+		log.Warn("HotTrend service error: %v", err)
+	}
+
+	marketService := services.NewMarketService()
+	newsService := services.NewNewsService()
+
+	// 初始化工具注册中心
+	toolRegistry := tools.NewRegistry(marketService, newsService, configService, researchReportService, hotTrendSvc)
+
+	// 初始化 MCP 管理器
+	mcpManager := mcp.NewManager()
+	if err := mcpManager.LoadConfigs(configService.GetConfig().MCPServers); err != nil {
+		log.Warn("MCP load error: %v", err)
+	}
+
+	// 初始化会议室服务
+	meetingService := meeting.NewServiceFull(toolRegistry, mcpManager)
+
+	// 初始化记忆管理器
+	var memoryManager *memory.Manager
+	memConfig := configService.GetConfig().Memory
+	if memConfig.Enabled {
+		memoryManager = memory.NewManagerWithConfig(dataDir, memory.Config{
+			MaxRecentRounds:   memConfig.MaxRecentRounds,
+			MaxKeyFacts:       memConfig.MaxKeyFacts,
+			MaxSummaryLength:  memConfig.MaxSummaryLength,
+			CompressThreshold: memConfig.CompressThreshold,
+		})
+		meetingService.SetMemoryManager(memoryManager)
+
+		if memConfig.AIConfigID != "" {
+			for i := range configService.GetConfig().AIConfigs {
+				if configService.GetConfig().AIConfigs[i].ID == memConfig.AIConfigID {
+					meetingService.SetMemoryAIConfig(&configService.GetConfig().AIConfigs[i])
+					log.Info("Memory LLM: %s", configService.GetConfig().AIConfigs[i].ModelName)
+					break
+				}
+			}
+		}
+		log.Info("Memory manager enabled")
+	}
+
+	// 初始化Session服务
+	sessionService := services.NewSessionService()
+
+	// 初始化Agent配置服务和容器
+	agentConfigService := services.NewAgentConfigService()
+	agentContainer := agent.NewContainer()
+	agentContainer.LoadAgents(agentConfigService.GetAllAgents())
+
+	log.Info("所有服务初始化完成")
+
 	return &App{
-		marketService: services.NewMarketService(),
-		newsService:   services.NewNewsService(),
+		configService:      configService,
+		marketService:      marketService,
+		newsService:        newsService,
+		hotTrendService:    hotTrendSvc,
+		meetingService:     meetingService,
+		sessionService:     sessionService,
+		agentConfigService: agentConfigService,
+		agentContainer:     agentContainer,
+		toolRegistry:       toolRegistry,
+		mcpManager:         mcpManager,
+		memoryManager:      memoryManager,
 	}
 }
 
@@ -47,79 +130,19 @@ func NewApp() *App {
 func (a *App) startup(ctx context.Context) {
 	a.ctx = ctx
 
-	// 初始化配置服务
-	dataDir := filepath.Join(".", "data")
-	configService, err := services.NewConfigService(dataDir)
-	if err != nil {
-		panic(err)
-	}
-	a.configService = configService
-
-	// 初始化研报服务
-	researchReportService := services.NewResearchReportService()
-
-	// 初始化舆情热点服务
-	hotTrendSvc, err := hottrend.NewHotTrendService()
-	if err != nil {
-		fmt.Println("[startup] HotTrend service error:", err)
-	}
-	a.hotTrendService = hotTrendSvc
-
-	// 初始化工具注册中心
-	toolRegistry := tools.NewRegistry(a.marketService, a.newsService, a.configService, researchReportService, hotTrendSvc)
-	a.toolRegistry = toolRegistry
-
-	// 初始化 MCP 管理器
-	a.mcpManager = mcp.NewManager()
-	if err := a.mcpManager.LoadConfigs(a.configService.GetConfig().MCPServers); err != nil {
-		fmt.Println("[startup] MCP load error:", err)
-	}
-
-	// 初始化会议室服务（带工具和 MCP 支持）
-	a.meetingService = meeting.NewServiceFull(toolRegistry, a.mcpManager)
-
-	// 根据配置初始化记忆管理器
-	memConfig := a.configService.GetConfig().Memory
-	if memConfig.Enabled {
-		a.memoryManager = memory.NewManagerWithConfig(dataDir, memory.Config{
-			MaxRecentRounds:   memConfig.MaxRecentRounds,
-			MaxKeyFacts:       memConfig.MaxKeyFacts,
-			MaxSummaryLength:  memConfig.MaxSummaryLength,
-			CompressThreshold: memConfig.CompressThreshold,
-		})
-		a.meetingService.SetMemoryManager(a.memoryManager)
-
-		// 设置记忆管理专用的 LLM 配置
-		if memConfig.AIConfigID != "" {
-			for i := range a.configService.GetConfig().AIConfigs {
-				if a.configService.GetConfig().AIConfigs[i].ID == memConfig.AIConfigID {
-					a.meetingService.SetMemoryAIConfig(&a.configService.GetConfig().AIConfigs[i])
-					fmt.Printf("[startup] Memory LLM: %s\n", a.configService.GetConfig().AIConfigs[i].ModelName)
-					break
-				}
-			}
-		}
-		fmt.Println("[startup] Memory manager enabled")
-	}
-
-	// 初始化Session服务
-	a.sessionService = services.NewSessionService()
-
-	// 初始化Agent配置服务和容器
-	a.agentConfigService = services.NewAgentConfigService()
-	a.agentContainer = agent.NewContainer()
-	a.agentContainer.LoadAgents(a.agentConfigService.GetAllAgents())
-
-	// 初始化并启动市场数据推送服务
+	// 初始化并启动市场数据推送服务（需要 context）
 	a.marketPusher = services.NewMarketDataPusher(a.marketService, a.configService, a.newsService)
 	a.marketPusher.Start(ctx)
+	log.Info("市场数据推送服务已启动")
 }
 
 // shutdown 应用关闭时调用
 func (a *App) shutdown(ctx context.Context) {
+	log.Info("应用正在关闭...")
 	if a.marketPusher != nil {
 		a.marketPusher.Stop()
 	}
+	logger.Close()
 }
 
 // Greet returns a greeting for the given name
@@ -140,7 +163,7 @@ func (a *App) UpdateConfig(config *models.AppConfig) string {
 	// 重新加载 MCP 配置
 	if a.mcpManager != nil && config.MCPServers != nil {
 		if err := a.mcpManager.LoadConfigs(config.MCPServers); err != nil {
-			fmt.Println("[UpdateConfig] MCP reload error:", err)
+			log.Warn("MCP reload error: %v", err)
 		}
 	}
 	// 更新记忆管理器的 LLM 配置
@@ -182,7 +205,7 @@ func (a *App) RemoveFromWatchlist(symbol string) string {
 	// 同步清除该股票的记忆
 	if a.memoryManager != nil {
 		if err := a.memoryManager.DeleteMemory(symbol); err != nil {
-			fmt.Printf("[RemoveFromWatchlist] delete memory error: %v\n", err)
+			log.Error("delete memory error: %v", err)
 		}
 	}
 	return "success"
@@ -268,7 +291,7 @@ func (a *App) ClearSessionMessages(stockCode string) string {
 	// 同步清除该股票的记忆
 	if a.memoryManager != nil {
 		if err := a.memoryManager.DeleteMemory(stockCode); err != nil {
-			fmt.Printf("[ClearSessionMessages] delete memory error: %v\n", err)
+			log.Error("delete memory error: %v", err)
 		}
 	}
 	return "success"
@@ -336,7 +359,7 @@ func (a *App) SendMeetingMessage(req MeetingMessageRequest) []models.ChatMessage
 	// 获取Session
 	session := a.sessionService.GetSession(req.StockCode)
 	if session == nil {
-		fmt.Println("[SendMeetingMessage] session not found:", req.StockCode)
+		log.Warn("session not found: %s", req.StockCode)
 		return []models.ChatMessage{}
 	}
 
@@ -361,7 +384,7 @@ func (a *App) SendMeetingMessage(req MeetingMessageRequest) []models.ChatMessage
 	config := a.configService.GetConfig()
 	aiConfig := a.getDefaultAIConfig(config)
 	if aiConfig == nil {
-		fmt.Println("[SendMeetingMessage] no AI config found")
+		log.Warn("no AI config found")
 		return []models.ChatMessage{}
 	}
 
@@ -408,7 +431,7 @@ func (a *App) runSmartMeeting(stockCode string, stock models.Stock, query string
 
 	responses, err := a.meetingService.RunSmartMeetingWithCallback(a.ctx, aiConfig, chatReq, respCallback, progressCallback)
 	if err != nil {
-		fmt.Println("[runSmartMeeting] error:", err)
+		log.Error("runSmartMeeting error: %v", err)
 		return []models.ChatMessage{}
 	}
 
@@ -444,7 +467,7 @@ func (a *App) runDirectMeeting(req MeetingMessageRequest, stock models.Stock, ai
 
 	responses, err := a.meetingService.SendMessage(a.ctx, aiConfig, chatReq)
 	if err != nil {
-		fmt.Println("[runDirectMeeting] error:", err)
+		log.Error("runDirectMeeting error: %v", err)
 		return []models.ChatMessage{}
 	}
 
