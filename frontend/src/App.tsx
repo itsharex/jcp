@@ -460,7 +460,7 @@ const App: React.FC = () => {
       {/* Main Content Grid */}
       <div className="flex-1 flex overflow-hidden">
         {/* Left Sidebar: Watchlist */}
-        <div style={{ width: leftPanelWidth }} className="shrink-0">
+        <div style={{ width: leftPanelWidth }} className="shrink-0 fin-panel overflow-hidden">
           <StockList
             stocks={watchlist}
             selectedSymbol={selectedSymbol}
@@ -475,9 +475,9 @@ const App: React.FC = () => {
         <ResizeHandle direction="horizontal" onResize={handleLeftResize} onResizeEnd={handleResizeEnd} />
 
         {/* Center Panel: Charts & Data */}
-        <div className="flex-1 flex flex-col min-w-0 bg-transparent">
+        <div className="flex-1 flex flex-col min-w-0 fin-panel-center">
           {/* Stock Header - A股风格 */}
-          <div className="fin-panel-strong border-b fin-divider px-6 py-3 shrink-0">
+          <div className="px-6 py-3 shrink-0 border-b fin-divider-soft">
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-center gap-3">
                 <span className={`text-lg font-bold ${colors.isDark ? 'text-white' : 'text-slate-800'}`}>{selectedStock.name}</span>
@@ -525,9 +525,9 @@ const App: React.FC = () => {
               </div>
             </div>
           </div>
-          
+
           {/* A股传统行情数据 */}
-          <div className="grid grid-cols-4 gap-px p-2 fin-panel border-b fin-divider shrink-0 text-xs">
+          <div className="grid grid-cols-4 gap-px p-2 border-b fin-divider-soft shrink-0 text-xs">
             <AStockStatItem label="今开" value={selectedStock.open} preClose={selectedStock.preClose} isDark={colors.isDark} />
             <AStockStatItem label="最高" value={selectedStock.high} preClose={selectedStock.preClose} isDark={colors.isDark} />
             <AStockStatItem label="成交量" value={formatVolume(selectedStock.volume)} isPlain isDark={colors.isDark} />
@@ -552,7 +552,7 @@ const App: React.FC = () => {
             <ResizeHandle direction="vertical" onResize={handleBottomResize} onResizeEnd={handleResizeEnd} />
 
             {/* Bottom Info Panel: Order Book Only */}
-            <div style={{ height: bottomPanelHeight }} className="border-t fin-divider flex fin-panel shrink-0">
+            <div style={{ height: bottomPanelHeight }} className="border-t fin-divider-soft flex shrink-0">
                <div className="flex-1 overflow-hidden relative">
                   <OrderBookComponent data={orderBook} />
                </div>
@@ -564,7 +564,7 @@ const App: React.FC = () => {
         <ResizeHandle direction="horizontal" onResize={handleRightResize} onResizeEnd={handleResizeEnd} />
 
         {/* Right Panel: AI Agents */}
-        <div style={{ width: rightPanelWidth }} className="shrink-0">
+        <div style={{ width: rightPanelWidth }} className="shrink-0 fin-panel overflow-hidden">
           <AgentRoom
             stock={selectedStock}
             kLineData={kLineData}

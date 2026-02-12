@@ -393,9 +393,9 @@ export const AgentRoom: React.FC<AgentRoomProps> = ({ session, onSessionUpdate }
   };
 
   return (
-    <div className="relative flex flex-col h-full fin-panel border-l fin-divider shadow-xl">
+    <div className="relative flex flex-col h-full">
       {/* Header */}
-      <div className="p-4 border-b fin-divider fin-panel-strong">
+      <div className="p-4 border-b fin-divider-soft">
         <div className="flex items-center justify-between">
           <h2 className={`text-lg font-bold flex items-center gap-2 ${colors.isDark ? 'text-white' : 'text-slate-800'}`}>
             <Users style={{ color: 'var(--accent)' }} />
@@ -414,7 +414,7 @@ export const AgentRoom: React.FC<AgentRoomProps> = ({ session, onSessionUpdate }
       </div>
 
       {/* Chat Area */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 fin-panel-soft fin-scrollbar" ref={scrollRef}>
+      <div className="flex-1 overflow-y-auto p-4 space-y-4 fin-scrollbar" ref={scrollRef}>
         {messages.length === 0 && (
           <div className={`h-full flex flex-col items-center justify-center text-sm p-8 text-center opacity-60 ${colors.isDark ? 'text-slate-500' : 'text-slate-400'}`}>
             <MessageSquare size={32} className="mb-2" />
@@ -612,7 +612,7 @@ export const AgentRoom: React.FC<AgentRoomProps> = ({ session, onSessionUpdate }
       </div>
 
       {/* Input Area */}
-      <div className="p-3 border-t fin-divider fin-panel-strong shrink-0">
+      <div className="p-3 border-t fin-divider-soft shrink-0">
         {/* 引用预览 */}
         {replyToMessage && (
           <div className={`flex items-center gap-2 mb-2 p-2 rounded-lg border-l-2 border-accent ${colors.isDark ? 'bg-slate-800/50' : 'bg-slate-100'}`}>

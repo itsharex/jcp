@@ -3,6 +3,7 @@ import { Stock } from '../types';
 import { searchStocks, StockSearchResult } from '../services/stockService';
 import { Search, TrendingUp, X } from 'lucide-react';
 import { WindowClose } from '../../wailsjs/go/main/App';
+import { useTheme } from '../contexts/ThemeContext';
 import logo from '../assets/images/logo.png';
 
 interface WelcomePageProps {
@@ -10,6 +11,7 @@ interface WelcomePageProps {
 }
 
 export const WelcomePage: React.FC<WelcomePageProps> = ({ onAddStock }) => {
+  const { colors } = useTheme();
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<StockSearchResult[]>([]);
   const [showDropdown, setShowDropdown] = useState(false);
@@ -79,7 +81,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onAddStock }) => {
       <div className="absolute top-3 right-3" style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
         <button
           onClick={() => WindowClose()}
-          className="p-1.5 rounded hover:bg-red-500/80 text-slate-400 hover:text-white transition-colors"
+          className={`p-1.5 rounded hover:bg-red-500/80 transition-colors ${colors.isDark ? 'text-slate-400 hover:text-white' : 'text-slate-500 hover:text-white'}`}
           title="关闭"
         >
           <X className="h-4 w-4" />
@@ -90,24 +92,28 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onAddStock }) => {
       <div className="flex items-center gap-3 mb-8">
         <img src={logo} alt="Logo" className="h-14 w-14 rounded-lg" />
         <div>
-          <h1 className="text-3xl font-bold text-white">
+          <h1 className={`text-3xl font-bold ${colors.isDark ? 'text-white' : 'text-slate-800'}`}>
             韭菜盘 <span className="text-accent-2">AI</span>
           </h1>
-          <p className="text-slate-400 text-sm">智能股票分析助手</p>
+          <p className={`text-sm ${colors.isDark ? 'text-slate-400' : 'text-slate-500'}`}>智能股票分析助手</p>
         </div>
       </div>
 
       {/* 搜索框 */}
       <div ref={searchRef} className="w-96 relative">
         <div className="relative">
-          <Search className="absolute left-4 top-3.5 h-5 w-5 text-slate-400" />
+          <Search className={`absolute left-4 top-3.5 h-5 w-5 ${colors.isDark ? 'text-slate-400' : 'text-slate-500'}`} />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             onFocus={() => searchResults.length > 0 && setShowDropdown(true)}
             placeholder="搜索股票代码或名称，添加自选股..."
-            className="w-full bg-slate-800/80 border border-slate-600 rounded-xl pl-12 pr-4 py-3 text-base text-white placeholder-slate-500 focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+            className={`w-full rounded-xl pl-12 pr-4 py-3 text-base focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all ${
+              colors.isDark
+                ? 'bg-slate-800/80 border border-slate-600 text-white placeholder-slate-500'
+                : 'bg-white/90 border border-slate-300 text-slate-800 placeholder-slate-400'
+            }`}
             autoFocus
           />
           {isSearching && (
@@ -117,22 +123,30 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onAddStock }) => {
 
         {/* 搜索下拉结果 */}
         {showDropdown && (
-          <div className="absolute top-full left-0 right-0 mt-2 max-h-80 overflow-y-auto bg-slate-800 border border-slate-600 rounded-xl shadow-2xl">
+          <div className={`absolute top-full left-0 right-0 mt-2 max-h-80 overflow-y-auto rounded-xl shadow-2xl ${
+            colors.isDark
+              ? 'bg-slate-800 border border-slate-600'
+              : 'bg-white border border-slate-200'
+          }`}>
             {searchResults.map((result) => (
               <div
                 key={result.symbol}
                 onClick={() => handleSelectResult(result)}
-                className="px-4 py-3 hover:bg-slate-700 cursor-pointer border-b border-slate-700 last:border-b-0 first:rounded-t-xl last:rounded-b-xl"
+                className={`px-4 py-3 cursor-pointer first:rounded-t-xl last:rounded-b-xl ${
+                  colors.isDark
+                    ? 'hover:bg-slate-700 border-b border-slate-700 last:border-b-0'
+                    : 'hover:bg-slate-100 border-b border-slate-200 last:border-b-0'
+                }`}
               >
                 <div className="flex justify-between items-center">
                   <div>
-                    <span className="text-white font-medium">{result.name}</span>
+                    <span className={`font-medium ${colors.isDark ? 'text-white' : 'text-slate-800'}`}>{result.name}</span>
                     <span className="ml-2 font-mono text-accent-2 text-sm">{result.symbol}</span>
                   </div>
-                  <span className="text-xs text-slate-500">{result.market}</span>
+                  <span className={`text-xs ${colors.isDark ? 'text-slate-500' : 'text-slate-400'}`}>{result.market}</span>
                 </div>
                 {result.industry && (
-                  <div className="text-xs text-slate-500 mt-1">{result.industry}</div>
+                  <div className={`text-xs mt-1 ${colors.isDark ? 'text-slate-500' : 'text-slate-400'}`}>{result.industry}</div>
                 )}
               </div>
             ))}
@@ -141,7 +155,7 @@ export const WelcomePage: React.FC<WelcomePageProps> = ({ onAddStock }) => {
       </div>
 
       {/* 提示文字 */}
-      <div className="mt-6 flex items-center gap-2 text-slate-500 text-sm">
+      <div className={`mt-6 flex items-center gap-2 text-sm ${colors.isDark ? 'text-slate-500' : 'text-slate-400'}`}>
         <TrendingUp className="h-4 w-4" />
         <span>搜索并添加您的第一只自选股开始使用</span>
       </div>

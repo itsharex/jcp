@@ -82,8 +82,33 @@
         -webkit-backdrop-filter: blur(8px);
     }
 
+    /* 卡片式面板 - 用于主要区块，带圆角和阴影 */
+    .fin-panel-card {
+        background: var(--panel);
+        border-radius: 12px;
+        box-shadow: 0 4px 16px var(--shadow), 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--stroke);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
+    /* 中间面板 - 左右有圆角和边框阴影，上下紧贴 */
+    .fin-panel-center {
+        background: var(--panel);
+        border-left: 1px solid var(--stroke);
+        border-right: 1px solid var(--stroke);
+        box-shadow: -4px 0 16px var(--shadow), 4px 0 16px var(--shadow);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+    }
+
     .fin-divider {
         border-color: var(--stroke);
+    }
+
+    /* 柔和分隔线 - 用于卡片内部分隔 */
+    .fin-divider-soft {
+        border-color: color-mix(in srgb, var(--stroke) 50%, transparent);
     }
 
     .fin-input {
@@ -288,6 +313,10 @@
 
     [data-theme-mode="light"] .fin-panel-strong {
         box-shadow: 0 6px 16px var(--shadow-strong), 0 2px 4px var(--shadow);
+    }
+
+    [data-theme-mode="light"] .fin-panel-card {
+        box-shadow: 0 2px 8px var(--shadow), 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
     [data-theme-mode="light"] .fin-glow {

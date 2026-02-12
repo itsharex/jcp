@@ -311,7 +311,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
           {isIntraday ? (
             <ComposedChart
               data={chartData}
-              margin={{ top: 10, right: 60, left: 10, bottom: 0 }}
+              margin={{ top: 10, right: 0, left: 0, bottom: 0 }}
               onMouseMove={(e: any) => {
                 if (e?.activePayload?.[0]?.payload) {
                   setHoverData(e.activePayload[0].payload);
@@ -374,6 +374,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                 tickLine={false}
                 tickFormatter={(val) => val.toFixed(2)}
                 tickCount={7}
+                width={50}
               />
 
               {/* 右侧涨跌幅轴 */}
@@ -386,7 +387,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                   const color = percent > 0 ? '#ef4444' : percent < 0 ? '#22c55e' : tickColor;
                   const sign = percent > 0 ? '+' : '';
                   return (
-                    <text x={x + 5} y={y} fill={color} fontSize={10} textAnchor="start" dominantBaseline="middle">
+                    <text x={x} y={y} fill={color} fontSize={10} textAnchor="start" dominantBaseline="middle">
                       {`${sign}${percent.toFixed(2)}%`}
                     </text>
                   );
@@ -394,6 +395,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                 axisLine={false}
                 tickLine={false}
                 tickCount={7}
+                width={50}
               />
 
               <Tooltip
@@ -492,7 +494,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
         <ResponsiveContainer width="100%" height="100%">
           <ComposedChart
             data={chartData}
-            margin={{ top: 5, right: isIntraday ? 60 : 10, left: isIntraday ? 10 : 0, bottom: 0 }}
+            margin={{ top: 5, right: 0, left: 0, bottom: 0 }}
             onMouseMove={(e: any) => {
               if (e?.activePayload?.[0]?.payload) {
                 setHoverData(e.activePayload[0].payload);
@@ -515,7 +517,19 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                 }}
               />
             )}
+            {/* 左侧占位轴，与价格图对齐 */}
+            {isIntraday && (
+              <YAxis
+                yAxisId="left"
+                orientation="left"
+                tick={{ fill: 'transparent', fontSize: 10 }}
+                axisLine={false}
+                tickLine={false}
+                width={50}
+              />
+            )}
             <YAxis
+              yAxisId="right"
               orientation="right"
               tick={{ fill: colors.isDark ? '#64748b' : '#94a3b8', fontSize: 9 }}
               axisLine={false}
@@ -524,7 +538,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                 if (val >= 10000) return (val / 10000).toFixed(0) + '万';
                 return val.toString();
               }}
-              width={isIntraday ? 50 : 40}
+              width={50}
             />
             <Tooltip
               content={({ active, payload }) => {
@@ -551,7 +565,7 @@ export const StockChart: React.FC<StockChartProps> = ({ data, period, onPeriodCh
                 );
               }}
             />
-            <Bar dataKey="volume" isAnimationActive={false}>
+            <Bar dataKey="volume" yAxisId="right" isAnimationActive={false}>
               {chartData.map((entry, index) => {
                 // 分时图：价格高于均价为红，低于均价为绿
                 // K线图：收盘高于开盘为红，低于开盘为绿
