@@ -108,10 +108,25 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // 处理K线数据更新（来自后端推送）
-  const handleKLineUpdate = useCallback((data: { code: string; period: string; data: KLineData[] }) => {
-    // 只更新当前选中股票和周期的K线数据
-    if (data && data.code === selectedSymbol && data.period === timePeriod) {
+  // 处理K线数据更新（来自后端推送，支持增量）
+  const handleKLineUpdate = useCallback((data: { code: string; period: string; data: KLineData[]; incremental?: boolean }) => {
+    if (!data || data.code !== selectedSymbol || data.period !== timePeriod) return;
+
+    if (data.incremental && data.data.length > 0) {
+      // 增量更新：合并最新K线
+      setKLineData(prev => {
+        if (prev.length === 0) return data.data;
+        const newBar = data.data[0];
+        const lastIdx = prev.length - 1;
+        // 同一时间戳则更新，否则追加
+        if (prev[lastIdx].time === newBar.time) {
+          const updated = [...prev];
+          updated[lastIdx] = newBar;
+          return updated;
+        }
+        return [...prev.slice(-239), newBar]; // 保持240根
+      });
+    } else {
       setKLineData(data.data);
     }
   }, [selectedSymbol, timePeriod]);

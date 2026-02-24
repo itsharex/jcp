@@ -7,6 +7,7 @@ interface KLineUpdateData {
   code: string;
   period: string;
   data: KLineData[];
+  incremental?: boolean; // 是否增量推送
 }
 
 // 事件名称常量，与后端保持一致
