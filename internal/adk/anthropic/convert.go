@@ -40,16 +40,24 @@ func extractTextFromContent(content *genai.Content) string {
 	return strings.Join(texts, "\n")
 }
 
+const anthropicOfficialHost = "api.anthropic.com"
+
+// isOfficialAPI 判断是否为 Anthropic 官方 API 地址
+func isOfficialAPI(baseURL string) bool {
+	return strings.Contains(baseURL, anthropicOfficialHost)
+}
+
 // toAnthropicRequest 将 ADK LLMRequest 转换为 Anthropic Messages 请求
-func toAnthropicRequest(req *model.LLMRequest, modelName string) (*MessagesRequest, error) {
+func toAnthropicRequest(req *model.LLMRequest, modelName, baseURL string) (*MessagesRequest, error) {
 	ar := &MessagesRequest{
 		Model:     modelName,
 		MaxTokens: 4096, // Anthropic 要求必须设置
 	}
 
-	// 系统指令 → 顶层 system 字段
+	// 提取系统指令文本
+	var systemText string
 	if req.Config != nil && req.Config.SystemInstruction != nil {
-		ar.System = extractTextFromContent(req.Config.SystemInstruction)
+		systemText = extractTextFromContent(req.Config.SystemInstruction)
 	}
 
 	// 转换消息
@@ -57,6 +65,25 @@ func toAnthropicRequest(req *model.LLMRequest, modelName string) (*MessagesReque
 	if err != nil {
 		return nil, err
 	}
+
+	// 非官方 API：system 降级为第一条 user message
+	if systemText != "" {
+		if isOfficialAPI(baseURL) {
+			ar.System = systemText
+		} else {
+			systemMsg := Message{
+				Role:    "user",
+				Content: []ContentBlock{{Type: "text", Text: systemText}},
+			}
+			// 如果第一条也是 user，合并避免连续 user
+			if len(msgs) > 0 && msgs[0].Role == "user" {
+				msgs[0].Content = append([]ContentBlock{{Type: "text", Text: systemText}}, msgs[0].Content...)
+			} else {
+				msgs = append([]Message{systemMsg}, msgs...)
+			}
+		}
+	}
+
 	ar.Messages = msgs
 
 	// 转换工具
@@ -181,6 +208,11 @@ func convertTools(genaiTools []*genai.Tool) ([]Tool, error) {
 			if err != nil {
 				return nil, fmt.Errorf("marshal tool schema: %w", err)
 			}
+			// 清洗 MCP 透传的 JSON Schema，移除 Anthropic 不支持的关键字
+			schemaJSON, err = sanitizeSchemaForAnthropic(schemaJSON)
+			if err != nil {
+				convertLog.Warn("清洗 tool schema 失败 (%s): %v", fd.Name, err)
+			}
 			tools = append(tools, Tool{
 				Name:        fd.Name,
 				Description: fd.Description,
@@ -189,6 +221,68 @@ func convertTools(genaiTools []*genai.Tool) ([]Tool, error) {
 		}
 	}
 	return tools, nil
+}
+
+// sanitizeSchemaForAnthropic 清洗 JSON Schema，移除 Anthropic 不支持的关键字
+func sanitizeSchemaForAnthropic(raw json.RawMessage) (json.RawMessage, error) {
+	var schema map[string]any
+	if err := json.Unmarshal(raw, &schema); err != nil {
+		return raw, err
+	}
+	sanitizeSchemaNode(schema)
+	return json.Marshal(schema)
+}
+
+// sanitizeSchemaNode 递归清洗 schema 节点
+func sanitizeSchemaNode(node map[string]any) {
+	// const → enum 单值
+	if val, ok := node["const"]; ok {
+		node["enum"] = []any{val}
+		delete(node, "const")
+	}
+
+	// 移除 default: null
+	if v, ok := node["default"]; ok && v == nil {
+		delete(node, "default")
+	}
+
+	// anyOf 含 {"type":"null"} → 提取非 null 分支，标记非必填
+	if anyOf, ok := node["anyOf"].([]any); ok {
+		var nonNull []any
+		for _, item := range anyOf {
+			if m, ok := item.(map[string]any); ok {
+				if m["type"] == "null" {
+					continue
+				}
+				nonNull = append(nonNull, m)
+			}
+		}
+		if len(nonNull) == 1 {
+			// 单个非 null 分支，展平到当前节点
+			if m, ok := nonNull[0].(map[string]any); ok {
+				delete(node, "anyOf")
+				for k, v := range m {
+					node[k] = v
+				}
+			}
+		} else if len(nonNull) > 1 {
+			node["anyOf"] = nonNull
+		}
+	}
+
+	// 递归处理 properties
+	if props, ok := node["properties"].(map[string]any); ok {
+		for _, v := range props {
+			if m, ok := v.(map[string]any); ok {
+				sanitizeSchemaNode(m)
+			}
+		}
+	}
+
+	// 递归处理 items
+	if items, ok := node["items"].(map[string]any); ok {
+		sanitizeSchemaNode(items)
+	}
 }
 
 // convertAnthropicResponse 将 Anthropic 响应转换为 ADK LLMResponse

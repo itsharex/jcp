@@ -72,6 +72,7 @@ func (m *AnthropicModel) doRequest(ctx context.Context, ar *MessagesRequest) (*h
 	if err != nil {
 		return nil, fmt.Errorf("build endpoint: %w", err)
 	}
+
 	httpReq, err := http.NewRequestWithContext(ctx, "POST", endpoint, bytes.NewReader(jsonBody))
 	if err != nil {
 		return nil, fmt.Errorf("create request: %w", err)
@@ -82,13 +83,25 @@ func (m *AnthropicModel) doRequest(ctx context.Context, ar *MessagesRequest) (*h
 	httpReq.Header.Set("anthropic-version", "2023-06-01")
 	httpReq.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) CherryStudio/1.2.4 Chrome/126.0.6478.234 Electron/31.7.6 Safari/537.36")
 
-	return m.httpClient.Do(httpReq)
+	resp, err := m.httpClient.Do(httpReq)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
+		resp.Body.Close()
+		modelLog.Error("API 响应异常: status=%d, body=%s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
+	}
+
+	return resp, nil
 }
 
 // generate 非流式生成
 func (m *AnthropicModel) generate(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
-		ar, err := toAnthropicRequest(req, m.modelName)
+		ar, err := toAnthropicRequest(req, m.modelName, m.baseURL)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -105,11 +118,6 @@ func (m *AnthropicModel) generate(ctx context.Context, req *model.LLMRequest) it
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 10*1024*1024))
 		if err != nil {
 			yield(nil, fmt.Errorf("read response: %w", err))
-			return
-		}
-
-		if resp.StatusCode != http.StatusOK {
-			yield(nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body)))
 			return
 		}
 
@@ -132,7 +140,7 @@ func (m *AnthropicModel) generate(ctx context.Context, req *model.LLMRequest) it
 // generateStream 流式生成
 func (m *AnthropicModel) generateStream(ctx context.Context, req *model.LLMRequest) iter.Seq2[*model.LLMResponse, error] {
 	return func(yield func(*model.LLMResponse, error) bool) {
-		ar, err := toAnthropicRequest(req, m.modelName)
+		ar, err := toAnthropicRequest(req, m.modelName, m.baseURL)
 		if err != nil {
 			yield(nil, err)
 			return
@@ -145,12 +153,6 @@ func (m *AnthropicModel) generateStream(ctx context.Context, req *model.LLMReque
 			return
 		}
 		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			body, _ := io.ReadAll(io.LimitReader(resp.Body, 2048))
-			yield(nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body)))
-			return
-		}
 
 		m.processStream(resp.Body, yield)
 	}

@@ -22,6 +22,7 @@ type Message struct {
 }
 
 // ContentBlock 内容块（多态）
+// 使用自定义 MarshalJSON 按 Type 输出不同字段，避免序列化冲突
 type ContentBlock struct {
 	Type string `json:"type"` // text / image / tool_use / tool_result / thinking
 
@@ -38,8 +39,42 @@ type ContentBlock struct {
 
 	// tool_result
 	ToolUseID  string          `json:"tool_use_id,omitempty"`
-	RawContent json.RawMessage `json:"content,omitempty"` // tool_result 的内容，可以是 string 或 []ContentBlock
+	RawContent json.RawMessage `json:"-"` // 自定义序列化，不走默认 tag
 	IsError    bool            `json:"is_error,omitempty"`
+}
+
+// MarshalJSON 按 Type 输出对应字段，避免多余字段导致 Anthropic 拒绝
+func (b ContentBlock) MarshalJSON() ([]byte, error) {
+	switch b.Type {
+	case "text":
+		return json.Marshal(struct {
+			Type string `json:"type"`
+			Text string `json:"text"`
+		}{b.Type, b.Text})
+	case "thinking":
+		return json.Marshal(struct {
+			Type     string `json:"type"`
+			Thinking string `json:"thinking"`
+		}{b.Type, b.Thinking})
+	case "tool_use":
+		return json.Marshal(struct {
+			Type  string          `json:"type"`
+			ID    string          `json:"id"`
+			Name  string          `json:"name"`
+			Input json.RawMessage `json:"input"`
+		}{b.Type, b.ID, b.Name, b.Input})
+	case "tool_result":
+		v := struct {
+			Type      string          `json:"type"`
+			ToolUseID string          `json:"tool_use_id"`
+			Content   json.RawMessage `json:"content,omitempty"`
+			IsError   bool            `json:"is_error,omitempty"`
+		}{b.Type, b.ToolUseID, b.RawContent, b.IsError}
+		return json.Marshal(v)
+	default:
+		type Alias ContentBlock
+		return json.Marshal((*Alias)(&b))
+	}
 }
 
 // Tool 工具定义

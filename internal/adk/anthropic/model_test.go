@@ -27,7 +27,7 @@ func TestToAnthropicRequest_Basic(t *testing.T) {
 		},
 	}
 
-	ar, err := toAnthropicRequest(req, "claude-opus-4-6")
+	ar, err := toAnthropicRequest(req, "claude-opus-4-6", "https://api.anthropic.com")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
